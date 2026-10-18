@@ -30,6 +30,8 @@ import /init.recovery.wifi.rc
 on early-init
     wait /sys/fs/selinux/enforce
     write /sys/fs/selinux/enforce 0
+    # FBE decryption, mirror of what hyperos uses on the vendor
+    setprop vendor.gatekeeper.disable_spu true
 
 service aera-graphics-allocator /vendor/bin/hw/vendor.qti.hardware.display.allocator-service
     class hal
@@ -74,6 +76,8 @@ on property:twrp.modules.loaded=true
     start health-hal-2-1
     start vibratorfeature-hal-service
     umount /firmware
+    # start aera audio
+    start audio-service
 
 on property:vendor.sys.listeners.registered=true
     start vendor.gatekeeper_default
@@ -85,3 +89,47 @@ service fl_service /system/bin/aera_flashlight.sh
     user root
     group root
     seclabel u:r:recovery:s0
+
+service pd-mapper /vendor/bin/aera-pd-mapper
+    class core
+    disabled
+    seclabel u:r:recovery:s0
+    user system
+    group system
+    setenv LD_LIBRARY_PATH /vendor/aera-audio:/vendor/lib64:/system/lib64
+
+service dspservice /vendor/bin/aera-dspservice
+    class hal
+    disabled
+    seclabel u:r:recovery:s0
+    user system
+    group system wakelock oem_2908
+    capabilities BLOCK_SUSPEND
+    setenv LD_LIBRARY_PATH /vendor/aera-audio:/vendor/lib64:/system/lib64
+    interface vendor.qti.hardware.dsp@1.0::IDspService dspservice
+
+service audioadsprpcd /vendor/bin/aera-audioadsprpcd audiopd
+    class main
+    disabled
+    seclabel u:r:recovery:s0
+    user media
+    group media
+    setenv LD_LIBRARY_PATH /vendor/aera-audio:/vendor/lib64:/system/lib64
+
+service agm-service /vendor/bin/hw/aera-agm-service
+    class hal
+    disabled
+    seclabel u:r:recovery:s0
+    user system
+    group system audio media mediadrm oem_2901 wakelock
+    capabilities BLOCK_SUSPEND SYS_NICE
+    setenv LD_LIBRARY_PATH /vendor/aera-audio:/vendor/lib64:/system/lib64
+    interface vendor.qti.hardware.AGMIPC@1.0::IAGM default
+
+service audio-service /system/bin/aera-audio-service
+    class core
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+    user root
+    group root system audio media wakelock
