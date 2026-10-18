@@ -144,9 +144,9 @@ start_init_service() {
     return 0
 }
 
-start_init_service aera-pd-mapper required
-start_init_service aera-dspservice required
-start_init_service aera-audioadsprpcd required
+start_init_service pd-mapper required
+start_init_service dspservice required
+start_init_service audioadsprpcd required
 stage "DSP services running; waiting for sound chip"
 
 attempt=0
@@ -159,5 +159,5 @@ stage "sound chip registered"
 
 chown media audio /sys/kernel/snd_card/card_state /sys/kernel/aud_dev/state
 
-start_init_service aera-agm-service required
+start_init_service agm-service required
 stage "AGM backend ready"
