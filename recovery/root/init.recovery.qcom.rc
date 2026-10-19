@@ -30,7 +30,6 @@ import /init.recovery.wifi.rc
 on early-init
     wait /sys/fs/selinux/enforce
     write /sys/fs/selinux/enforce 0
-    # FBE decryption, mirror of what hyperos uses on the vendor
     setprop vendor.gatekeeper.disable_spu true
 
 service aera-graphics-allocator /vendor/bin/hw/vendor.qti.hardware.display.allocator-service
@@ -39,8 +38,6 @@ service aera-graphics-allocator /vendor/bin/hw/vendor.qti.hardware.display.alloc
     user root
     group root graphics
     capabilities SYS_NICE
-    # Do not spin every five seconds if a vendor/runtime mismatch prevents
-    # registration. A healthy allocator stays resident after its first start.
     oneshot
 
 on init
@@ -65,10 +62,8 @@ on boot
     start fl_service
 
 on property:twrp.modules.loaded=true
-    # Mount firmware
     mkdir /firmware
     mount vfat /dev/block/bootdevice/by-name/modem${ro.boot.slot_suffix} /firmware ro
-    # Load ADSP firmware for PMIC (and the battery/charging stack)
     wait /sys/kernel/boot_adsp/boot
     write /sys/kernel/boot_adsp/boot 1
     wait /sys/class/power_supply/battery
@@ -76,7 +71,8 @@ on property:twrp.modules.loaded=true
     start health-hal-2-1
     start vibratorfeature-hal-service
     umount /firmware
-    # start aera audio
+
+on property:post.decrypt.modules=true
     start audio-service
 
 on property:vendor.sys.listeners.registered=true
@@ -90,46 +86,55 @@ service fl_service /system/bin/aera_flashlight.sh
     group root
     seclabel u:r:recovery:s0
 
-service pd-mapper /vendor/bin/aera-pd-mapper
+service pd-mapper /system/bin/linker64 /system/aera-audio-vendor/bin/pd-mapper
     class core
     disabled
+    user root
+    group root system
     seclabel u:r:recovery:s0
-    user system
-    group system
-    setenv LD_LIBRARY_PATH /vendor/aera-audio:/vendor/lib64:/system/lib64
+    setenv LD_LIBRARY_PATH /system/aera-audio-system-lib64:/system/aera-audio-vendor/lib64:/system/lib64
 
-service dspservice /vendor/bin/aera-dspservice
+service audioadsprpcd /system/bin/linker64 /system/aera-audio-vendor/bin/audioadsprpcd audiopd
+    class main
+    disabled
+    user media
+    group media
+    seclabel u:r:recovery:s0
+    setenv LD_LIBRARY_PATH /system/aera-audio-system-lib64:/system/aera-audio-vendor/lib64:/system/lib64
+
+service dspservice /system/bin/linker64 /system/aera-audio-vendor/bin/dspservice
     class hal
     disabled
-    seclabel u:r:recovery:s0
     user system
     group system wakelock oem_2908
     capabilities BLOCK_SUSPEND
-    setenv LD_LIBRARY_PATH /vendor/aera-audio:/vendor/lib64:/system/lib64
+    seclabel u:r:recovery:s0
+    setenv LD_LIBRARY_PATH /system/aera-audio-system-lib64:/system/aera-audio-vendor/lib64:/system/lib64
     interface vendor.qti.hardware.dsp@1.0::IDspService dspservice
 
-service audioadsprpcd /vendor/bin/aera-audioadsprpcd audiopd
-    class main
-    disabled
-    seclabel u:r:recovery:s0
-    user media
-    group media
-    setenv LD_LIBRARY_PATH /vendor/aera-audio:/vendor/lib64:/system/lib64
-
-service agm-service /vendor/bin/hw/aera-agm-service
+service agm-ipc /system/bin/linker64 /system/aera-audio-vendor/bin/hw/vendor.qti.hardware.AGMIPC@1.0-service
     class hal
     disabled
-    seclabel u:r:recovery:s0
     user system
     group system audio media mediadrm oem_2901 wakelock
     capabilities BLOCK_SUSPEND SYS_NICE
-    setenv LD_LIBRARY_PATH /vendor/aera-audio:/vendor/lib64:/system/lib64
-    interface vendor.qti.hardware.AGMIPC@1.0::IAGM default
+    seclabel u:r:recovery:s0
+    setenv LD_LIBRARY_PATH /system/aera-audio-system-lib64:/system/aera-audio-vendor/lib64/hw:/system/aera-audio-vendor/lib64:/vendor/aera-audio:/system/lib64
+
+service agm-service /system/bin/aera-audio-hal
+    class main
+    disabled
+    user root
+    group root system audio media wakelock
+    seclabel u:r:recovery:s0
+    setenv LD_LIBRARY_PATH /system/aera-audio-system-lib64:/system/aera-audio-vendor/lib64/hw:/system/aera-audio-vendor/lib64:/vendor/aera-audio:/system/lib64
+    setenv ANDROID_ROOT /system
+    setenv ANDROID_DATA /data
 
 service audio-service /system/bin/aera-audio-service
     class core
     disabled
     oneshot
-    seclabel u:r:recovery:s0
     user root
     group root system audio media wakelock
+    seclabel u:r:recovery:s0

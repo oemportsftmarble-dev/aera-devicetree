@@ -1,5 +1,7 @@
 #!/system/bin/sh
 
+# TODO: Add torch_3 node to actually show max_brightness as torch_0 alone is not enough
+
 DIR="/tmp/flashlight"
 STATE_FILE="$DIR/brightness"
 MAX_FILE="$DIR/max_brightness"
