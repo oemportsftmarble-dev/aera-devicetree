@@ -71,6 +71,7 @@ on property:twrp.modules.loaded=true
     start health-hal-2-1
     start vibratorfeature-hal-service
     umount /firmware
+    start audio-service
 
 on property:post.decrypt.modules=true
     start audio-service

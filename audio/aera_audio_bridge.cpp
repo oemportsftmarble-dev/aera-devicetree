@@ -36,6 +36,8 @@ constexpr uint32_t kHardwareBits = 32U;
 constexpr int kDefaultVolumePercent = 30;
 constexpr char kSocketName[] = "aera-browser-audio-v1";
 constexpr char kBootstrap[] = "/system/bin/aera-audio-bootstrap";
+constexpr char kSoundCard[] = "/dev/snd/controlC0";
+constexpr int kBackendWaitTenths = 250;
 constexpr char kSelf[] = "/proc/self/exe";
 constexpr char kAudioInterface[] = "CODEC_DMA-LPAIF_WSA-RX-0";
 constexpr unsigned int kAgmCard = 100;
@@ -384,18 +386,35 @@ int ReadVolumePercent() {
   return std::clamp(atoi(value), 0, 100);
 }
 
-bool StartBackend() {
+bool PalReady() { return access(kSoundCard, F_OK) == 0; }
+
+bool StartBackend(int wait_tenths) {
+  if (PalReady()) return true;
   const pid_t child = fork();
   if (child < 0) return false;
   if (!child) {
     execl(kBootstrap, "aera-audio-bootstrap", nullptr);
     _exit(127);
   }
-  int status = 0;
-  while (waitpid(child, &status, 0) < 0) {
-    if (errno != EINTR) return false;
+  for (int tick = 0; tick < wait_tenths; ++tick) {
+    int status = 0;
+    const pid_t done = waitpid(child, &status, WNOHANG);
+    if (done == child)
+      return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    if (done < 0 && errno != EINTR) return false;
+    if (PalReady()) return true;
+    usleep(100000);
   }
-  return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+  return false;
+}
+
+void DrainClient(int client) {
+  std::array<uint8_t, 8192> sink{};
+  while (!g_stop) {
+    const ssize_t count = read(client, sink.data(), sink.size());
+    if (count < 0 && errno == EINTR) continue;
+    if (count <= 0) break;
+  }
 }
 
 pid_t StartPlayer(const std::string& fifo) {
@@ -470,8 +489,9 @@ void ServeClient(int client) {
     return;
   }
 
-  if (!StartBackend()) {
-    fprintf(stderr, "aera-audio: pal backend not ready\n");
+  if (!StartBackend(kBackendWaitTenths)) {
+    fprintf(stderr, "aera-audio: no pal backend, draining this stream\n");
+    DrainClient(client);
     return;
   }
 
@@ -640,11 +660,10 @@ int main(int argc, char** argv) {
     close(server);
     return 70;
   }
-  if (!StartBackend()) {
-
-    fprintf(stderr, "aera-audio: backend deferred until first client\n");
-  } else {
+  if (PalReady()) {
     fprintf(stderr, "aera-audio: pcm bridge up\n");
+  } else {
+    fprintf(stderr, "aera-audio: backend deferred until first client\n");
   }
 
   while (!g_stop) {
