@@ -35,7 +35,7 @@ constexpr uint32_t kBits = 16U;
 constexpr uint32_t kHardwareBits = 32U;
 constexpr int kDefaultVolumePercent = 30;
 constexpr char kSocketName[] = "aera-browser-audio-v1";
-constexpr char kBootstrap[] = "/system/bin/aera-audio-bootstrap";
+constexpr char kBootstrap[] = "/system/bin/aera-audio-service";
 constexpr char kSoundCard[] = "/dev/snd/controlC0";
 constexpr int kBackendWaitTenths = 250;
 constexpr char kSelf[] = "/proc/self/exe";
@@ -393,7 +393,7 @@ bool StartBackend(int wait_tenths) {
   const pid_t child = fork();
   if (child < 0) return false;
   if (!child) {
-    execl(kBootstrap, "aera-audio-bootstrap", nullptr);
+    execl(kBootstrap, "aera-audio-service", nullptr);
     _exit(127);
   }
   for (int tick = 0; tick < wait_tenths; ++tick) {
